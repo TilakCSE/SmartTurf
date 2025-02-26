@@ -1,22 +1,39 @@
 package cli;
 
-public class Turf {
-    private final String turfId;
-    private final String sportType;
-    private final String location;
-    private boolean isAvailable;
+import java.util.ArrayList;
+import java.util.List;
 
-    public Turf(String turfId, String sportType, String location, boolean isAvailable) {
+public class Turf {
+    private String turfId;
+    private String sportType;
+    private String location;
+    private List<TimeSlot> timeSlots;
+
+    public Turf(String turfId, String sportType, String location) {
         this.turfId = turfId;
         this.sportType = sportType;
         this.location = location;
-        this.isAvailable = isAvailable;
+        this.timeSlots = new ArrayList<>();
     }
 
     // Getters and Setters
     public String getTurfId() { return turfId; }
     public String getSportType() { return sportType; }
     public String getLocation() { return location; }
-    public boolean isAvailable() { return isAvailable; }
-    public void setAvailable(boolean available) { isAvailable = available; }
+    public List<TimeSlot> getTimeSlots() { return timeSlots; }
+
+    // Add a time slot
+    public void addTimeSlot(String slotId, String time) {
+        timeSlots.add(new TimeSlot(slotId, time, true));
+    }
+
+    // Get a time slot by ID
+    public TimeSlot getTimeSlotById(String slotId) {
+        for (TimeSlot slot : timeSlots) {
+            if (slot.getSlotId().equals(slotId)) {
+                return slot;
+            }
+        }
+        return null;
+    }
 }

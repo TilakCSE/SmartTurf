@@ -1,21 +1,21 @@
 package cli;
 
 public class Booking {
-    private final String bookingId;
-    private final String userEmail;
-    private final String turfId;
-    private final String timeSlot;
+    private String bookingId;
+    private String userEmail;
+    private String turfId;
+    private String slotId;
 
-    public Booking(String bookingId, String userEmail, String turfId, String timeSlot) {
+    public Booking(String bookingId, String userEmail, String turfId, String slotId) {
         this.bookingId = bookingId;
         this.userEmail = userEmail;
         this.turfId = turfId;
-        this.timeSlot = timeSlot;
+        this.slotId = slotId;
     }
 
-    // Getters and Setters
+    // Getters
     public String getBookingId() { return bookingId; }
     public String getUserEmail() { return userEmail; }
     public String getTurfId() { return turfId; }
-    public String getTimeSlot() { return timeSlot; }
+    public String getSlotId() { return slotId; }
 }

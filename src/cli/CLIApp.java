@@ -1,19 +1,25 @@
 package cli;
 
-import java.util.ArrayList;
+import interfaces.IBookingManager;
+import interfaces.ITurfManager;
+import exceptions.InvalidCredentialsException;
+import exceptions.TimeSlotNotAvailableException;
+import exceptions.TimeSlotNotFoundException;
+import exceptions.BookingNotFoundException;
+import exceptions.TurfNotAvailableException;
 import java.util.List;
 import java.util.Scanner;
 
 public class CLIApp {
-    private static List<User> users = new ArrayList<>();
-    private static final List<Turf> turfs = new ArrayList<>();
-    private static final List<Booking> bookings = new ArrayList<>();
-    private static final Scanner scanner = new Scanner(System.in);
+    private static UserManager userManager = new UserManager();
+    private static ITurfManager turfManager = new TurfManager();
+    private static IBookingManager bookingManager = new BookingManager((TurfManager) turfManager);
+    private static Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
-        loadData();
+        initializeData();
         while (true) {
-            System.out.println("Welcome, User");
+            System.out.println("Welcome to Smart Turf Booking System");
             System.out.println("1. Register");
             System.out.println("2. Login");
             System.out.println("3. Exit");
@@ -29,12 +35,24 @@ public class CLIApp {
                     loginUser();
                     break;
                 case 3:
-                    saveData();
                     System.exit(0);
                 default:
                     System.out.println("Invalid choice!");
             }
         }
+    }
+
+    private static void initializeData() {
+        // Add turfs with time slots
+        Turf turf1 = new Turf("T1", "Football", "Location A");
+        turf1.addTimeSlot("S1", "10:00 AM - 11:00 AM");
+        turf1.addTimeSlot("S2", "11:00 AM - 12:00 PM");
+        turfManager.addTurf(turf1);
+
+        Turf turf2 = new Turf("T2", "Cricket", "Location B");
+        turf2.addTimeSlot("S1", "10:00 AM - 11:00 AM");
+        turf2.addTimeSlot("S2", "11:00 AM - 12:00 PM");
+        turfManager.addTurf(turf2);
     }
 
     private static void registerUser() {
@@ -44,7 +62,7 @@ public class CLIApp {
         String email = scanner.nextLine();
         System.out.print("Enter password: ");
         String password = scanner.nextLine();
-        users.add(new User(name, email, password));
+        userManager.registerUser(name, email, password);
         System.out.println("Registration Successful!");
     }
 
@@ -53,17 +71,16 @@ public class CLIApp {
         String email = scanner.nextLine();
         System.out.print("Enter password: ");
         String password = scanner.nextLine();
-        for (User user : users) {
-            if (user.getEmail().equals(email) && user.getPassword().equals(password)) {
-                System.out.println("Login Successful!");
-                showTurfMenu();
-                return;
-            }
+        try {
+            User user = userManager.loginUser(email, password);
+            System.out.println("Login Successful!");
+            showTurfMenu(user);
+        } catch (InvalidCredentialsException e) {
+            System.out.println(e.getMessage());
         }
-        System.out.println("Invalid email or password!");
     }
 
-    private static void showTurfMenu() {
+    private static void showTurfMenu(User user) {
         while (true) {
             System.out.println("1. View Available Turfs");
             System.out.println("2. Book a Turf");
@@ -78,7 +95,7 @@ public class CLIApp {
                     viewTurfs();
                     break;
                 case 2:
-                    bookTurf();
+                    bookTurf(user);
                     break;
                 case 3:
                     cancelBooking();
@@ -92,35 +109,37 @@ public class CLIApp {
     }
 
     private static void viewTurfs() {
+        List<Turf> turfs = turfManager.getAvailableTurfs();
         for (Turf turf : turfs) {
             System.out.println("Turf ID: " + turf.getTurfId() + ", Sport: " + turf.getSportType() +
-                    ", Location: " + turf.getLocation() + ", Available: " + turf.isAvailable());
+                    ", Location: " + turf.getLocation());
+            System.out.println("Available Time Slots:");
+            for (TimeSlot slot : turf.getTimeSlots()) {
+                System.out.println("  Slot ID: " + slot.getSlotId() + ", Time: " + slot.getTime() +
+                        ", Available: " + slot.isAvailable());
+            }
         }
     }
 
-    private static void bookTurf() {
+    private static void bookTurf(User user) {
         System.out.print("Enter Turf ID: ");
         String turfId = scanner.nextLine();
-        System.out.print("Enter Time Slot: ");
-        String timeSlot = scanner.nextLine();
-        bookings.add(new Booking("B" + bookings.size(), "user@example.com", turfId, timeSlot));
-        System.out.println("Booking Successful!");
+        System.out.print("Enter Slot ID: ");
+        String slotId = scanner.nextLine();
+        try {
+            bookingManager.bookTurf(user.getEmail(), turfId, slotId);
+        } catch (TimeSlotNotAvailableException | TimeSlotNotFoundException | TurfNotAvailableException e) {
+            System.out.println(e.getMessage());
+        }
     }
 
     private static void cancelBooking() {
         System.out.print("Enter Booking ID: ");
         String bookingId = scanner.nextLine();
-        bookings.removeIf(booking -> booking.getBookingId().equals(bookingId));
-        System.out.println("Booking Cancelled!");
-    }
-
-    private static void loadData() {
-        users = FileHandler.loadUsers();
-        // Load turfs and bookings similarly
-    }
-
-    private static void saveData() {
-        FileHandler.saveUsers(users);
-        // Save turfs and bookings similarly
+        try {
+            bookingManager.cancelBooking(bookingId);
+        } catch (BookingNotFoundException | TimeSlotNotFoundException e) {
+            System.out.println(e.getMessage());
+        }
     }
 }
