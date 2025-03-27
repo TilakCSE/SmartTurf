@@ -3,6 +3,7 @@ package cli;
 import interfaces.ITimeSlotManager;
 import exceptions.TimeSlotNotAvailableException;
 import exceptions.TimeSlotNotFoundException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class TimeSlotManager implements ITimeSlotManager {
@@ -35,6 +36,12 @@ public class TimeSlotManager implements ITimeSlotManager {
 
     @Override
     public List<TimeSlot> getAvailableTimeSlots() {
-        return turf.getTimeSlots().stream().filter(TimeSlot::isAvailable).toList();
+        List<TimeSlot> availableSlots = new ArrayList<>();
+        for (TimeSlot slot : turf.getTimeSlots()) {
+            if (slot.isAvailable()) {
+                availableSlots.add(slot);
+            }
+        }
+        return availableSlots;
     }
 }

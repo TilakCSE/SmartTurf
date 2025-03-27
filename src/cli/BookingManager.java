@@ -122,6 +122,6 @@ public class BookingManager implements IBookingManager {
         if (bookings.isEmpty()) {
             return null;
         }
-        return bookings.getLast().getBookingId();
+        return bookings.get(bookings.size() - 1).getBookingId();
     }
 }
