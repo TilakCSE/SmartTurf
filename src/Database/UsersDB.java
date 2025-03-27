@@ -17,10 +17,21 @@ public class UsersDB {
     }
 
     // Getters
-    public int getUserId() { return userId; }
-    public String getUserName() { return userName; }
-    public String getPassword() { return password; }
-    public String getUserType() { return userType; }
+    public int getUserId() {
+        return userId;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public String getUserType() {
+        return userType;
+    }
 
     // Essential methods only
     public static void createUser(UsersDB user) throws SQLException {

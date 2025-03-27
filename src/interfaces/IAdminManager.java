@@ -10,6 +10,5 @@ public interface IAdminManager {
     void viewBookedTurfs();
     void viewAllTurfs();
     void editTurf(String turfId) throws TurfNotAvailableException;
-    void cancelClientBooking(String bookingId) throws BookingNotFoundException, TimeSlotNotFoundException;
     void editPaymentStatus(String bookingId, String status) throws BookingNotFoundException;
 }

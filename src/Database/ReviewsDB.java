@@ -78,6 +78,7 @@ public class ReviewsDB {
         return null;
     }
 
+
     public static List<ReviewsDB> getReviewsByTurf(int turfId) throws SQLException {
         List<ReviewsDB> reviews = new ArrayList<>();
         String sql = "SELECT * FROM Reviews WHERE turf_id = ?";

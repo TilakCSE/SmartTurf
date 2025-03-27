@@ -1,5 +1,8 @@
 package cli;
 
+import Database.ReviewsDB;
+
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -11,26 +14,32 @@ public class ReviewManager {
     }
 
     // Add a review
-    public void addReview(String bookingId, String turfId, String userEmail, int stars, String reviewText) {
-        String reviewId = "R" + (reviews.size() + 1);
-        Review review = new Review(reviewId, bookingId, turfId, userEmail, stars, reviewText);
-        reviews.add(review);
-        System.out.println("Review added successfully!");
-    }
+    public void addReview(String bookingId, String clientId, String turfId,
+                          String reviewText, int stars) {
+        try {
+            // Generate review ID
+            String reviewId = "R" + (reviews.size() + 1);
 
-    // Get all reviews
-    public List<Review> getAllReviews() {
-        return reviews;
-    }
+            // Create review date (current date)
+            String reviewDate = new java.sql.Date(System.currentTimeMillis()).toString();
 
-    // Get reviews by turf ID
-    public List<Review> getReviewsByTurfId(String turfId) {
-        List<Review> turfReviews = new ArrayList<>();
-        for (Review review : reviews) {
-            if (review.getTurfId().equals(turfId)) {
-                turfReviews.add(review);
-            }
+            // Add to database
+            ReviewsDB.addReview(
+                    Integer.parseInt(bookingId),
+                    Integer.parseInt(clientId),
+                    Integer.parseInt(turfId),
+                    reviewText,
+                    stars,
+                    reviewDate
+            );
+
+            // Also add to local list
+            reviews.add(new Review(reviewId, bookingId, turfId, clientId, stars, reviewText));
+
+        } catch (NumberFormatException e) {
+            System.err.println("Invalid ID format: " + e.getMessage());
+        } catch (SQLException e) {
+            System.err.println("Failed to save review: " + e.getMessage());
         }
-        return turfReviews;
     }
 }

@@ -14,15 +14,17 @@ public class TimeSlotManager implements ITimeSlotManager {
     }
 
     @Override
-    public void bookTimeSlot(String slotId) throws TimeSlotNotAvailableException, TimeSlotNotFoundException {
+    public void bookTimeSlot(String slotId) throws TimeSlotNotAvailableException {
         TimeSlot slot = turf.getTimeSlotById(slotId);
-        if (slot == null) {
-            throw new TimeSlotNotFoundException("Time Slot not found!");
-        }
-        if (!slot.isAvailable()) {
-            throw new TimeSlotNotAvailableException("Time Slot is not available!");
+        if (slot == null || !slot.isAvailable()) {
+            throw new TimeSlotNotAvailableException("Slot not available");
         }
         slot.setAvailable(false);
+
+        // If all slots booked, mark turf as unavailable
+        if (turf.areAllTimeSlotsBooked()) {
+            turf.setAvailable(false);
+        }
     }
 
     @Override

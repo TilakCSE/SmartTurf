@@ -46,12 +46,10 @@ public class Turf {
 
     // Get a time slot by ID
     public TimeSlot getTimeSlotById(String slotId) {
-        for (TimeSlot slot : timeSlots) {
-            if (slot.getSlotId().equals(slotId)) {
-                return slot;
-            }
-        }
-        return null;
+        return timeSlots.stream()
+                .filter(slot -> slot.getSlotId().equals(slotId))
+                .findFirst()
+                .orElse(null);
     }
 
     // Check if all time slots are booked

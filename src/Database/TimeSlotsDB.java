@@ -33,12 +33,9 @@ public class TimeSlotsDB {
             stmt.executeUpdate();
 
             try (ResultSet rs = stmt.getGeneratedKeys()) {
-                if (rs.next()) {
-                    return rs.getInt(1);
-                }
+                return rs.next() ? rs.getInt(1) : -1;
             }
         }
-        return -1;
     }
 
     public static TimeSlotsDB getSlotById(int slotId) throws SQLException {
@@ -97,13 +94,19 @@ public class TimeSlotsDB {
         return slots;
     }
 
-    public static void updateSlotAvailability(int slotId, boolean isAvailable) throws SQLException {
+    public static void updateSlotAvailability(Connection conn, int slotId, boolean isAvailable)
+            throws SQLException {
         String sql = "UPDATE TimeSlots SET is_available = ? WHERE slot_id = ?";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setBoolean(1, isAvailable);
             stmt.setInt(2, slotId);
             stmt.executeUpdate();
+        }
+    }
+
+    public static void updateSlotAvailability(int slotId, boolean isAvailable) throws SQLException {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            updateSlotAvailability(conn, slotId, isAvailable);
         }
     }
 

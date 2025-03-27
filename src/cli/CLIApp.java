@@ -12,8 +12,8 @@ public class CLIApp {
     private static UserManager userManager = new UserManager();
     private static TurfManager turfManager = new TurfManager();
     private static IBookingManager bookingManager = new BookingManager(turfManager);
-    private static ReviewManager reviewManager = new ReviewManager();
-    private static IAdminManager adminManager = new AdminManager(turfManager, bookingManager, reviewManager);
+    private static ReviewManager reviewManager = new ReviewManager();  // Declared but unused
+    private static IAdminManager adminManager = new AdminManager(turfManager, bookingManager);
     private static Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
@@ -81,10 +81,10 @@ public class CLIApp {
             System.out.println("2. Delete Turf");
             System.out.println("3. View Booked Turfs");
             System.out.println("4. View All Turfs");
-            System.out.println("5. Edit Turf");
-            System.out.println("6. Cancel Client Booking");
-            System.out.println("7. Edit Payment Status");
-            System.out.println("8. View All Payments");
+            System.out.println("5. Edit Payment Status");
+            System.out.println("6. View All Payments");
+            System.out.println("7. Edit Turf Info");
+            System.out.println("8. Manage Time Slots");
             System.out.println("9. Logout");
             System.out.print("Enter your choice: ");
 
@@ -106,16 +106,16 @@ public class CLIApp {
                         viewAllTurfs();
                         break;
                     case 5:
-                        editTurf();
-                        break;
-                    case 6:
-                        cancelClientBooking();
-                        break;
-                    case 7:
                         editPaymentStatus();
                         break;
-                    case 8:
+                    case 6:
                         viewAllPayments();
+                        break;
+                    case 7:
+                        editTurf();
+                        break;
+                    case 8:
+                        manageTurfTimeSlots();
                         break;
                     case 9:
                         return;
@@ -125,51 +125,227 @@ public class CLIApp {
             } catch (InputMismatchException e) {
                 System.out.println("Invalid input! Please enter a number.");
                 scanner.nextLine();
-            } catch (TurfNotAvailableException e) {
-                System.out.println(e.getMessage());
             }
         }
     }
 
     private static void addTurf() {
-        System.out.print("Enter Turf ID: ");
-        String turfId = scanner.nextLine();
-        System.out.print("Enter Sport Type: ");
-        String sportType = scanner.nextLine();
-        System.out.print("Enter Location: ");
-        String location = scanner.nextLine();
-        System.out.print("Enter Fee per Hour: ");
-        double feePerHour = scanner.nextDouble();
-        scanner.nextLine(); // Consume newline
-
         try {
-            adminManager.addTurf(turfId, sportType, location, feePerHour);
-        } catch (TurfNotAvailableException e) {
-            System.out.println(e.getMessage());
+            System.out.println("\n=== Add New Turf ===");
+            String turfName = InputValidator.getNonEmptyString(scanner, "Turf Name: ");
+            String turfType = InputValidator.getNonEmptyString(scanner, "Sport Type: ");
+            String location = InputValidator.getNonEmptyString(scanner, "Location: ");
+            double feePerHour = InputValidator.getValidFee(scanner);
+
+            // Now this will work because addTurf returns an int
+            int turfId = TurfDB.addTurf(turfName, turfType, location, feePerHour, 1);
+
+            if (turfId != -1) {
+                System.out.println("\n=== Add Time Slots ===");
+                addTimeSlotsToTurf(turfId);
+                System.out.println("Turf added successfully with ID: " + turfId);
+            } else {
+                System.out.println("Failed to add turf!");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error adding turf: " + e.getMessage());
         }
     }
 
-    private static void deleteTurf() throws TurfNotAvailableException {
-        System.out.print("Enter Turf ID: ");
-        String turfId = scanner.nextLine();
-        adminManager.deleteTurf(turfId);
+    private static void manageTurfTimeSlots() {
+        try {
+            viewAllTurfs();
+            System.out.print("\nEnter Turf ID to manage slots (0 to cancel): ");
+            int turfId = scanner.nextInt();
+            scanner.nextLine(); // Consume newline
+
+            if (turfId != 0) {
+                addTimeSlotsToTurf(turfId); // Reuse the same method
+            }
+        } catch (SQLException e) {
+            System.err.println("Database error: " + e.getMessage());
+        }
     }
 
-    private static void viewBookedTurfs() {
-        adminManager.viewBookedTurfs();
+    private static void deleteTurf() {
+        try {
+            viewAllTurfs();
+            int turfId = InputValidator.getValidInt(scanner,
+                    "Enter Turf ID to delete (0 to cancel): ",
+                    0, Integer.MAX_VALUE);
+
+            if (turfId == 0) {
+                System.out.println("Deletion cancelled.");
+                return;
+            }
+
+            if (InputValidator.getYesNoConfirmation(scanner,
+                    "WARNING: This will delete ALL related bookings and time slots. Continue? (y/n)")) {
+
+                TurfDB.deleteTurf(turfId);
+                System.out.println("Turf and all related data deleted successfully!");
+            }
+        } catch (SQLException e) {
+            System.err.println("Deletion failed: " + e.getMessage());
+        }
     }
 
-    private static void viewAllTurfs() {
-        adminManager.viewAllTurfs();
+    private static void addTimeSlotsToTurf(int turfId) throws SQLException {
+        while (true) {
+            System.out.println("\nCurrent Time Slots:");
+            List<TimeSlotsDB> slots = TimeSlotsDB.getSlotsByTurf(turfId);
+            if (slots.isEmpty()) {
+                System.out.println("No slots added yet");
+            } else {
+                slots.forEach(slot ->
+                        System.out.printf("%d: %s (%s)\n",
+                                slot.getSlotId(),
+                                slot.getSlotTime(),
+                                slot.isAvailable() ? "Available" : "Booked"));
+            }
+
+            System.out.println("\n1. Add New Time Slot");
+            System.out.println("2. Finish Adding Slots");
+
+            int choice = InputValidator.getValidInt(scanner, "Choice: ", 1, 2);
+
+
+            if (choice == 1) {
+                String slotTime = InputValidator.getValidTimeSlot(
+                        scanner,
+                        "Enter time slot (e.g., '10:00 AM - 11:00 AM'): "
+                );
+                TimeSlotsDB.addTimeSlot(turfId, slotTime);
+            } else {
+                break;
+            }
+        }
     }
 
     private static void editTurf() {
-        System.out.print("Enter Turf ID to edit: ");
-        String turfId = scanner.nextLine();
         try {
-            adminManager.editTurf(turfId);
-        } catch (TurfNotAvailableException e) {
-            System.out.println(e.getMessage());
+            while (true) { // Continuous editing until user chooses to exit
+                viewAllTurfs();
+                System.out.print("\nEnter Turf ID to edit (0 to exit): ");
+                int turfId = scanner.nextInt();
+                scanner.nextLine(); // Consume newline
+
+                if (turfId == 0) break;
+
+                TurfDB turf = TurfDB.getTurfById(turfId);
+                if (turf == null) {
+                    System.out.println("Invalid Turf ID!");
+                    continue;
+                }
+
+                System.out.println("\nEditing Turf: " + turf.getTurfName());
+                System.out.println("1. Edit Time Slots");
+                System.out.println("2. Edit Basic Info");
+                System.out.println("3. Back to Menu");
+                System.out.print("Choice: ");
+
+                int choice = scanner.nextInt();
+                scanner.nextLine(); // Consume newline
+
+                switch (choice) {
+                    case 1:
+                        editTimeSlots(turfId);
+                        break;
+                    case 2:
+                        editTurfBasicInfo(turfId);
+                        break;
+                    case 3:
+                        return;
+                    default:
+                        System.out.println("Invalid choice!");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Database error: " + e.getMessage());
+        }
+    }
+    private static void editTimeSlots(int turfId) throws SQLException {
+        List<TimeSlotsDB> slots = TimeSlotsDB.getSlotsByTurf(turfId);
+        System.out.println("\n=== Time Slots ===");
+        for (TimeSlotsDB slot : slots) {
+            System.out.printf("%d: %s (%s)\n",
+                    slot.getSlotId(),
+                    slot.getSlotTime(),
+                    slot.isAvailable() ? "Available" : "Booked");
+        }
+
+        System.out.print("\nEnter Slot ID to toggle availability (0 to cancel): ");
+        int slotId = scanner.nextInt();
+        scanner.nextLine(); // Consume newline
+
+        if (slotId != 0) {
+            TimeSlotsDB slot = TimeSlotsDB.getSlotById(slotId);
+            if (slot != null && slot.getTurfId() == turfId) {
+                TimeSlotsDB.updateSlotAvailability(slotId, !slot.isAvailable());
+                System.out.println("Slot availability updated!");
+            } else {
+                System.out.println("Invalid Slot ID for this turf!");
+            }
+        }
+    }
+    private static void editTurfBasicInfo(int turfId) throws SQLException {
+        TurfDB turf = TurfDB.getTurfById(turfId);
+        if (turf == null) {
+            System.out.println("Turf not found!");
+            return;
+        }
+
+        while (true) {
+            System.out.println("\n=== Editing Turf: " + turf.getTurfName() + " ===");
+            System.out.println("Current Details:");
+            System.out.println("1. Name: " + turf.getTurfName());
+            System.out.println("2. Sport Type: " + turf.getTurfType());
+            System.out.println("3. Location: " + turf.getLocation());
+            System.out.println("4. Fee/Hour: ₹" + turf.getFeePerHour());
+            System.out.println("5. Back to Turf Menu");
+            System.out.print("Select field to edit (1-5): ");
+
+            int choice = scanner.nextInt();
+            scanner.nextLine(); // Consume newline
+
+            switch (choice) {
+                case 1:
+                    System.out.print("Enter new name: ");
+                    String newName = scanner.nextLine();
+                    TurfDB.updateTurfName(turfId, newName);
+                    System.out.println("Name updated successfully!");
+                    break;
+
+                case 2:
+                    System.out.print("Enter new sport type: ");
+                    String newType = scanner.nextLine();
+                    TurfDB.updateTurfType(turfId, newType);
+                    System.out.println("Sport type updated successfully!");
+                    break;
+
+                case 3:
+                    System.out.print("Enter new location: ");
+                    String newLocation = scanner.nextLine();
+                    TurfDB.updateTurfLocation(turfId, newLocation);
+                    System.out.println("Location updated successfully!");
+                    break;
+
+                case 4:
+                    double newFee = InputValidator.getValidDouble(scanner,
+                            "Enter new fee/hour: ₹", 0, 10000);
+                    TurfDB.updateTurfFee(turfId, newFee);
+                    System.out.println("Fee updated successfully!");
+                    break;
+
+                case 5:
+                    return;
+
+                default:
+                    System.out.println("Invalid choice! Please enter 1-5");
+            }
+
+            // Refresh turf data after update
+            turf = TurfDB.getTurfById(turfId);
         }
     }
 
@@ -202,13 +378,54 @@ public class CLIApp {
         }
     }
 
-    private static void cancelClientBooking() {
-        System.out.print("Enter Booking ID to cancel: ");
-        String bookingId = scanner.nextLine();
+    private static void viewBookedTurfs() {
         try {
-            adminManager.cancelClientBooking(bookingId);
-        } catch (BookingNotFoundException | TimeSlotNotFoundException e) {
-            System.out.println(e.getMessage());
+            System.out.println("\n=== Booked Turfs ===");
+            List<BookingDB> bookings = BookingDB.getAllBookings();
+
+            if (bookings.isEmpty()) {
+                System.out.println("No booked turfs found.");
+                return;
+            }
+
+            System.out.printf("%-10s %-20s %-15s %-15s %-15s\n",
+                    "BookingID", "Turf", "Client", "Date", "Time");
+
+            for (BookingDB booking : bookings) {
+                TurfDB turf = TurfDB.getTurfById(booking.getTurfId());
+                ClientDB client = ClientDB.getClientById(booking.getClientId());
+                TimeSlotsDB slot = TimeSlotsDB.getSlotById(booking.getSlotId());
+
+                System.out.printf("%-10d %-20s %-15s %-15s %-15s\n",
+                        booking.getBookingId(),
+                        turf.getTurfName(),
+                        client.getUserName(),
+                        booking.getBookingDate(),
+                        slot.getSlotTime());
+            }
+        } catch (SQLException e) {
+            System.err.println("Database error: " + e.getMessage());
+        }
+    }
+
+    private static void viewAllTurfs() {
+        try {
+            List<TurfDB> turfs = TurfDB.getAllTurfs();
+            System.out.println("\n=== All Turfs ===");
+            System.out.printf("%-10s %-15s %-15s %-10s %-10s\n",
+                    "ID", "Sport", "Location", "Fee", "Status");
+
+            for (TurfDB turf : turfs) {
+                boolean isAvailable = TurfDB.isTurfAvailable(turf.getTurfId());
+                System.out.printf("%-10d %-15s %-15s ₹%-9.2f %-10s\n",
+                        turf.getTurfId(),
+                        turf.getTurfType(),
+                        turf.getLocation(),
+                        turf.getFeePerHour(),
+                        isAvailable ? "Available" : "Booked");
+            }
+        } catch (SQLException e) {
+            System.err.println("Database error: " + e.getMessage());
         }
     }
 
@@ -286,39 +503,25 @@ public class CLIApp {
     private static void registerUser() {
         System.out.println("\n=== User Registration ===");
 
-        String username;
+        String username = InputValidator.getNonEmptyString(scanner, "Enter username: ");
+        String email = InputValidator.getValidEmail(scanner);
+        String password;
         while (true) {
-            System.out.print("Enter username: ");
-            username = scanner.nextLine();
-
-            try {
-                // Check if username exists
-                if (UsersDB.usernameExists(username)) {
-                    System.out.println("Username '" + username + "' already exists. Please choose another.");
-                } else {
-                    break; // Exit loop if username is available
-                }
-            } catch (SQLException e) {
-                System.err.println("Error checking username availability. Please try again.");
-                return;
-            }
+            password = InputValidator.getNonEmptyString(scanner, "Enter password (min 6 chars): ");
+            if (password.length() >= 6) break;
+            System.out.println("Password must be at least 6 characters!");
         }
-
-        System.out.print("Enter password: ");
-        String password = scanner.nextLine();
-
-        System.out.print("Enter email: ");
-        String email = scanner.nextLine();
-
-        System.out.print("Enter contact info: ");
-        String contact = scanner.nextLine();
+        String contact = InputValidator.getNonEmptyString(scanner, "Enter contact info: ");
 
         try {
-            // Create user with auto-increment ID
-            UsersDB.createUser(new UsersDB(0, username, password, "client"));
+            if (UsersDB.usernameExists(username)) {
+                System.out.println("Username already exists!");
+                return;
+            }
 
-            // Get the created user to get the generated ID
+            UsersDB.createUser(new UsersDB(0, username, password, "client"));
             UsersDB user = UsersDB.getUserByCredentials(username, password);
+
             if (user != null) {
                 ClientDB.createClient(new ClientDB(
                         user.getUserId(),
@@ -327,7 +530,7 @@ public class CLIApp {
                         email,
                         contact
                 ));
-                System.out.println("Registration successful! Your ID: " + user.getUserId());
+                System.out.println("Registration successful! ID: " + user.getUserId());
             }
         } catch (SQLException e) {
             System.err.println("Registration failed: " + e.getMessage());
@@ -382,8 +585,8 @@ public class CLIApp {
                     case 4:
                         viewPaymentHistory(clientId);
                         break;
-                    case 5:
-                        submitReview(clientId);
+                    case 5:  // Submit Review
+                        submitReview(clientId, reviewManager);  // Pass reviewManager
                         break;
                     case 6:
                         return;
@@ -429,134 +632,100 @@ public class CLIApp {
     }
 
     private static void bookTurf(int clientId) {
+
         try {
-            System.out.println("\n=== Book a Turf ===");
-            viewAvailableTurfs(); // Show available turfs first
+            viewAvailableTurfs();
 
-            System.out.print("\nEnter Turf ID: ");
-            int turfId = scanner.nextInt();
-            System.out.print("Enter Slot ID: ");
-            int slotId = scanner.nextInt();
-            scanner.nextLine(); // Consume newline
+            int turfId = InputValidator.getValidInt(scanner, "Enter Turf ID: ", 1, Integer.MAX_VALUE);
+            int slotId = InputValidator.getValidInt(scanner, "Enter Slot ID: ", 1, Integer.MAX_VALUE);
 
-            // Get turf for price
-            TurfDB turf = TurfDB.getTurfById(turfId);
-            if (turf == null) {
-                System.out.println("Invalid Turf ID!");
-                return;
-            }
+            int paymentChoice = InputValidator.getValidInt(scanner,
+                    "Payment Method:\n1. Cash\n2. Online\nChoice (1-2): ", 1, 2);
 
-            // Verify slot is available
-            TimeSlotsDB slot = TimeSlotsDB.getSlotById(slotId);
-            if (slot == null || !slot.isAvailable() || slot.getTurfId() != turfId) {
-                System.out.println("Slot not available or doesn't match turf!");
-                return;
-            }
-
-            // Show payment options
-            System.out.println("\nSelect Payment Method:");
-            System.out.println("1. Cash (Pay at venue)");
-            System.out.println("2. Online Payment");
-            System.out.print("Enter choice: ");
-            int paymentChoice = scanner.nextInt();
-            scanner.nextLine();
-
-            String paymentMode;
-            String paymentStatus;
+            String paymentMode = (paymentChoice == 2) ? "Online" : "Cash";
+            String paymentStatus = (paymentChoice == 2) ? "Completed" : "Pending";
+            String transactionRef = "";
 
             if (paymentChoice == 2) {
-                paymentMode = "Online";
-                paymentStatus = "Completed";
-                System.out.print("Enter transaction reference: ");
-                String reference = scanner.nextLine();
-                // Here you would normally process payment gateway integration
-                System.out.println("Online payment successful! Ref: " + reference);
-            } else {
-                paymentMode = "Cash";
-                paymentStatus = "Pending";
+                transactionRef = InputValidator.getNonEmptyString(scanner, "Enter transaction reference: ");
             }
 
-            // Create booking
             String bookingDate = new java.sql.Date(System.currentTimeMillis()).toString();
             int bookingId = BookingDB.createBooking(clientId, turfId, slotId, bookingDate);
 
             if (bookingId != -1) {
-                // Create payment record
-                int paymentId = PaymentDB.createPayment(
+                PaymentDB.createPayment(
                         bookingId,
-                        turf.getFeePerHour(),
+                        TurfDB.getTurfById(turfId).getFeePerHour(),
                         paymentMode,
                         paymentStatus,
-                        paymentChoice == 2 ? new java.sql.Date(System.currentTimeMillis()) : null
+                        (paymentChoice == 2) ? new java.sql.Date(System.currentTimeMillis()) : null
                 );
 
-                // Mark slot as booked
                 TimeSlotsDB.updateSlotAvailability(slotId, false);
 
-                // Display confirmation
-                System.out.println("\nBooking Successful!");
+                System.out.println("\n=== Booking Confirmation ===");
                 System.out.println("Booking ID: " + bookingId);
-                System.out.println("Turf: " + turf.getTurfName());
-                System.out.println("Slot: " + slot.getSlotTime());
-                System.out.printf("Amount: ₹%.2f%n", turf.getFeePerHour());
+                System.out.println("Turf: " + TurfDB.getTurfById(turfId).getTurfName());
+                System.out.println("Slot: " + TimeSlotsDB.getSlotById(slotId).getSlotTime());
+                System.out.printf("Amount: ₹%.2f%n", TurfDB.getTurfById(turfId).getFeePerHour());
                 System.out.println("Payment Mode: " + paymentMode);
                 System.out.println("Status: " + paymentStatus);
-
-                if (paymentChoice == 1) {
-                    System.out.println("\nPlease pay ₹" + turf.getFeePerHour() + " in cash when you arrive.");
-                }
-            } else {
-                System.out.println("Booking failed!");
             }
         } catch (SQLException e) {
-            System.err.println("Database error: " + e.getMessage());
-        } catch (InputMismatchException e) {
-            System.err.println("Invalid input! Please enter numbers only.");
-            scanner.nextLine(); // Clear invalid input
+            System.err.println("Booking failed: " + e.getMessage());
         }
     }
 
 
     private static void cancelBooking(int clientId) {
         try {
-            System.out.println("\n=== Cancel Booking ===");
-
-            // Show user's bookings
             List<BookingDB> bookings = BookingDB.getBookingsByClient(clientId);
             if (bookings.isEmpty()) {
-                System.out.println("You have no active bookings.");
+                System.out.println("\nNo bookings to cancel.");
                 return;
             }
 
-            System.out.println("Your Bookings:");
-            for (BookingDB booking : bookings) {
-                TurfDB turf = TurfDB.getTurfById(booking.getTurfId());
-                TimeSlotsDB slot = TimeSlotsDB.getSlotById(booking.getSlotId());
-                System.out.printf("ID: %d | %s on %s at %s\n",
-                        booking.getBookingId(),
-                        turf.getTurfName(),
-                        booking.getBookingDate(),
-                        slot.getSlotTime());
-            }
+            // Display bookings
+            bookings.forEach(b -> {
+                try {
+                    TurfDB turf = TurfDB.getTurfById(b.getTurfId());
+                    TimeSlotsDB slot = TimeSlotsDB.getSlotById(b.getSlotId());
+                    System.out.printf("%d - %s on %s at %s\n",
+                            b.getBookingId(), turf.getTurfName(),
+                            b.getBookingDate(), slot.getSlotTime());
+                } catch (SQLException e) {
+                    System.err.println("Error displaying booking: " + e.getMessage());
+                }
+            });
 
-            System.out.print("\nEnter Booking ID to cancel: ");
-            int bookingId = scanner.nextInt();
-            scanner.nextLine(); // Consume newline
+            int bookingId = InputValidator.getValidInt(scanner,
+                    "Enter Booking ID to cancel (0 to abort): ",
+                    0, Integer.MAX_VALUE);
 
-            // Verify booking belongs to this client
-            boolean validBooking = bookings.stream()
-                    .anyMatch(b -> b.getBookingId() == bookingId);
+            if (bookingId != 0 && bookings.stream().anyMatch(b -> b.getBookingId() == bookingId)) {
+                if (InputValidator.getYesNoConfirmation(scanner, "Confirm cancellation? (y/n)")) {
+                    // Get payment info before cancelling
+                    PaymentDB payment = PaymentDB.getPaymentByBookingId(bookingId);
 
-            if (validBooking) {
-                BookingDB.cancelBooking(bookingId);
-                System.out.println("Booking cancelled successfully!");
+                    // Perform cancellation
+                    BookingDB.cancelBooking(bookingId);
+
+                    // Show appropriate message
+                    if (payment != null) {
+                        if ("Cash".equalsIgnoreCase(payment.getPaymentMode())) {
+                            System.out.println("Booking cancelled successfully!");
+                        } else if ("Online".equalsIgnoreCase(payment.getPaymentMode())) {
+                            System.out.println("Payment will be refunded to you within 24 hours.");
+                            System.out.println("Booking cancelled successfully!");
+                        }
+                    }
+                }
             } else {
                 System.out.println("Invalid Booking ID!");
             }
-
-        } catch (SQLException | InputMismatchException e) {
-            System.err.println("Cancellation failed: " + e.getMessage());
-            scanner.nextLine();
+        } catch (SQLException e) {
+            System.err.println("Database error: " + e.getMessage());
         }
     }
 
@@ -581,77 +750,86 @@ public class CLIApp {
         }
     }
 
-    private static void submitReview(int clientId) {
+    private static void submitReview(int clientId, ReviewManager reviewManager) {
         try {
-            System.out.println("\n=== Submit Review ===");
-
-            // Show user's bookings
+            // 1. Get client's bookings
             List<BookingDB> bookings = BookingDB.getBookingsByClient(clientId);
-            if (bookings == null || bookings.size() == 0) {  // Changed from isEmpty()
-                System.out.println("You have no bookings to review.");
+            if (bookings.isEmpty()) {
+                System.out.println("You have no completed bookings to review.");
                 return;
             }
 
-            System.out.println("Your Bookings:");
+            // 2. Display bookings
+            System.out.println("\nYour Bookings Available for Review:");
             for (BookingDB booking : bookings) {
                 TurfDB turf = TurfDB.getTurfById(booking.getTurfId());
                 System.out.printf("ID: %d | %s on %s\n",
-                        booking.getBookingId(),
-                        turf.getTurfName(),
-                        booking.getBookingDate());
+                        booking.getBookingId(), turf.getTurfName(), booking.getBookingDate());
             }
 
+            // 3. Get valid booking ID
             System.out.print("\nEnter Booking ID to review: ");
+            while (!scanner.hasNextInt()) {
+                System.out.println("Invalid input! Please enter a number.");
+                scanner.next(); // discard invalid input
+            }
             int bookingId = scanner.nextInt();
             scanner.nextLine(); // Consume newline
 
-            // Validate booking belongs to client
-            boolean validBooking = false;
-            BookingDB selectedBooking = null;
-            for (BookingDB booking : bookings) {
-                if (booking.getBookingId() == bookingId) {
-                    validBooking = true;
-                    selectedBooking = booking;
-                    break;
-                }
-            }
-
+            // 4. Validate booking belongs to client
+            boolean validBooking = bookings.stream()
+                    .anyMatch(b -> b.getBookingId() == bookingId);
             if (!validBooking) {
-                System.out.println("Invalid Booking ID!");
+                System.out.println("Error: This booking doesn't belong to you.");
                 return;
             }
 
+            // 5. Get rating (1-5)
             System.out.print("Enter rating (1-5 stars): ");
+            while (!scanner.hasNextInt()) {
+                System.out.println("Invalid input! Please enter a number 1-5.");
+                scanner.next(); // discard invalid input
+            }
             int stars = scanner.nextInt();
             scanner.nextLine(); // Consume newline
 
             if (stars < 1 || stars > 5) {
-                System.out.println("Rating must be 1-5 stars!");
+                System.out.println("Error: Rating must be between 1-5 stars.");
                 return;
             }
 
+            // 6. Get review text
             System.out.print("Enter your review comments: ");
-            String reviewText = scanner.nextLine();
+            String reviewText = scanner.nextLine().trim();
+            if (reviewText.isEmpty()) {
+                System.out.println("Error: Review comments cannot be empty.");
+                return;
+            }
 
-            // Use java.sql.Date instead of LocalDate
-            java.sql.Date reviewDate = new java.sql.Date(System.currentTimeMillis());
+            // 7. Get the turf ID from booking
+            BookingDB booking = BookingDB.getBookingById(bookingId);
+            if (booking == null) {
+                System.out.println("Error: Booking not found.");
+                return;
+            }
 
-            // Submit review
-            ReviewsDB.addReview(
-                    bookingId,
-                    clientId,
-                    selectedBooking.getTurfId(),
+            // 8. Submit review
+            reviewManager.addReview(
+                    String.valueOf(bookingId),
+                    String.valueOf(clientId),
+                    String.valueOf(booking.getTurfId()),
                     reviewText,
-                    stars,
-                    reviewDate.toString()
+                    stars
             );
 
-            System.out.println("Thank you for your review!");
+            System.out.println("\nThank you for your review!");
+
         } catch (SQLException e) {
-            System.err.println("Review submission failed: " + e.getMessage());
-        } catch (InputMismatchException e) {
-            System.err.println("Invalid input! Please enter numbers where required.");
-            scanner.nextLine(); // Clear invalid input
+            System.err.println("Database error: " + e.getMessage());
+            e.printStackTrace(); // Add this for debugging
+        } catch (Exception e) {
+            System.err.println("Unexpected error: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }
