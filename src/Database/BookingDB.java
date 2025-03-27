@@ -108,18 +108,53 @@ public class BookingDB {
     }
 
     public static void cancelBooking(int bookingId) throws SQLException {
-        // First get the slot ID to mark it as available
-        BookingDB booking = getBookingById(bookingId);
-        if (booking == null) return;
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false); // Start transaction
 
-        String sql = "DELETE FROM Booking WHERE booking_id = ?";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, bookingId);
-            stmt.executeUpdate();
+            // 1. Get slot ID from booking
+            int slotId;
+            String getSlotSql = "SELECT slot_id FROM Booking WHERE booking_id = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(getSlotSql)) {
+                stmt.setInt(1, bookingId);
+                ResultSet rs = stmt.executeQuery();
+                if (!rs.next()) {
+                    throw new SQLException("Booking not found!");
+                }
+                slotId = rs.getInt("slot_id");
+            }
 
-            // Mark slot as available again
-            TimeSlotsDB.updateSlotAvailability(booking.getSlotId(), true);
+            // 2. Delete payment record first (due to foreign key constraint)
+            String deletePaymentSql = "DELETE FROM Payment WHERE booking_id = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(deletePaymentSql)) {
+                stmt.setInt(1, bookingId);
+                stmt.executeUpdate();
+            }
+
+            // 3. Delete the booking
+            String deleteBookingSql = "DELETE FROM Booking WHERE booking_id = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(deleteBookingSql)) {
+                stmt.setInt(1, bookingId);
+                int affectedRows = stmt.executeUpdate();
+                if (affectedRows == 0) {
+                    throw new SQLException("Booking not found!");
+                }
+            }
+
+            // 4. Mark slot as available again
+            String updateSlotSql = "UPDATE TimeSlots SET is_available = TRUE WHERE slot_id = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(updateSlotSql)) {
+                stmt.setInt(1, slotId);
+                stmt.executeUpdate();
+            }
+
+            conn.commit(); // Commit transaction
+        } catch (SQLException e) {
+            if (conn != null) conn.rollback(); // Rollback on error
+            throw e;
+        } finally {
+            if (conn != null) conn.setAutoCommit(true);
         }
     }
 

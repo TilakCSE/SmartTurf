@@ -27,7 +27,8 @@ public class ClientDB {
     public String getContactInfo() { return contactInfo; }
 
     public static ClientDB getClientByCredentials(String username, String password) throws SQLException {
-        String sql = "SELECT * FROM Client WHERE user_name = ? AND password = ?";
+        String sql = "SELECT c.* FROM Client c JOIN Users u ON c.client_id = u.user_id " +
+                "WHERE c.user_name = ? AND c.password = ? AND u.user_type = 'client'";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, username);
@@ -45,6 +46,8 @@ public class ClientDB {
         }
         return null;
     }
+
+
 
     // CRUD Operations
     public static void createClient(ClientDB client) throws SQLException {

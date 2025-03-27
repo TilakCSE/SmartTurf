@@ -42,12 +42,15 @@ public class UsersDB {
         return null;
     }
 
+
+
     // CRUD Operations
+    // Your existing method (should work with 0 as ID for auto-increment)
     public static void createUser(UsersDB user) throws SQLException {
         String sql = "INSERT INTO Users (user_id, user_name, password, user_type) VALUES (?, ?, ?, ?)";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, user.getUserId());
+            stmt.setInt(1, user.getUserId()); // Will auto-increment if 0 is passed
             stmt.setString(2, user.getUserName());
             stmt.setString(3, user.getPassword());
             stmt.setString(4, user.getUserType());
