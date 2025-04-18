@@ -1,14 +1,13 @@
-package cli;
-
 import Database.*;
+import cli.*;
 import interfaces.IAdminManager;
 import interfaces.IBookingManager;
-import exceptions.*;
+
 import java.sql.*;
 import java.util.*;
 import java.text.SimpleDateFormat;
 
-public class CLIApp {
+public class Main {
     private static UserManager userManager = new UserManager();
     private static TurfManager turfManager = new TurfManager();
     private static IBookingManager bookingManager = new BookingManager(turfManager);
